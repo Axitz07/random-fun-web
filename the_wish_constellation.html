@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>The Wish Constellation</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Montserrat:wght@300;400;500&display=swap" rel="stylesheet">
+    
+    <!-- Three.js Engine & Addons -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <!-- GSAP for Ultra-Smooth Animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #010103;
+            --bg-glass: rgba(10, 10, 15, 0.6);
+            --text-main: #f4f4f5;
+            --text-muted: #8a8a93;
+            --accent-silver: #e4e4e7;
+            --border-glass: rgba(255, 255, 255, 0.15);
+            --glow-bright: 0 0 30px rgba(100, 150, 255, 0.5);
+            --zodiac-glow: 0 0 20px rgba(180, 200, 255, 0.4);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body, html {
+            width: 100%; height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Montserrat', sans-serif;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        h1, h2, h3, .serif { font-family: 'Cormorant Garamond', serif; font-weight: 400; }
+
+        #webgl-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0; }
+
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+
+        /* Intro Screen */
+        #intro-screen, #dob-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: var(--bg-color); z-index: 50; pointer-events: auto;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 1.5s ease, visibility 1.5s ease;
+        }
+
+        .intro-text { font-size: 1.2rem; letter-spacing: 0.3em; color: var(--text-muted); text-transform: uppercase; margin-bottom: 1rem; opacity: 0; }
+        .intro-title { font-size: 3.5rem; letter-spacing: 0.15em; color: #ffffff; text-align: center; opacity: 0; text-shadow: 0 0 30px rgba(255,255,255,0.3); }
+
+        /* Date of Birth Screen */
+        #dob-screen { visibility: hidden; opacity: 0; background: radial-gradient(circle, rgba(15,15,25,1) 0%, rgba(1,1,3,1) 100%); }
+        .dob-box {
+            background: var(--bg-glass); backdrop-filter: blur(20px); border: 1px solid var(--border-glass);
+            padding: 3rem; border-radius: 20px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            transform: translateY(30px); opacity: 0; width: 90%; max-width: 450px;
+        }
+        .dob-title { font-size: 2rem; color: #fff; margin-bottom: 0.5rem; }
+        .dob-subtitle { font-size: 0.8rem; letter-spacing: 0.2em; color: var(--text-muted); text-transform: uppercase; margin-bottom: 2.5rem; }
+        
+        .date-selectors { display: flex; gap: 1rem; justify-content: center; margin-bottom: 2rem; }
+        select {
+            background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.2);
+            padding: 12px 15px; border-radius: 10px; font-family: 'Montserrat', sans-serif; font-size: 1rem;
+            outline: none; cursor: pointer; flex-grow: 1; text-align: center;
+        }
+        select option { background: #111; color: #fff; }
+        
+        .btn-start {
+            background: #fff; color: #000; border: none; padding: 15px 30px; border-radius: 30px;
+            font-family: 'Montserrat', sans-serif; font-size: 0.85rem; font-weight: 600; letter-spacing: 0.2em;
+            text-transform: uppercase; cursor: pointer; transition: all 0.3s; width: 100%;
+        }
+        .btn-start:hover { box-shadow: var(--zodiac-glow); transform: translateY(-2px); }
+
+        .hud-instructions {
+            position: absolute; top: 2rem; left: 50%; transform: translateX(-50%);
+            font-size: 0.65rem; letter-spacing: 0.3em; color: rgba(255,255,255,0.7);
+            text-transform: uppercase; opacity: 0; transition: opacity 1s ease;
+            text-align: center; line-height: 1.8; pointer-events: none;
+            background: rgba(0,0,0,0.4); padding: 10px 25px; border-radius: 30px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px);
+        }
+
+        #interaction-area {
+            position: absolute; bottom: 8%; width: 90%; max-width: 600px;
+            pointer-events: auto; opacity: 0; transform: translateY(30px);
+            display: flex; flex-direction: column; align-items: center; gap: 1.5rem;
+        }
+        .zodiac-indicator { font-size: 0.7rem; letter-spacing: 0.4em; color: #88bbff; text-transform: uppercase; text-shadow: 0 0 10px rgba(136,187,255,0.5); }
+        .input-prompt { font-size: 1.5rem; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.8); text-align: center; }
+
+        .wish-input-wrapper {
+            position: relative; width: 100%; background: var(--bg-glass);
+            backdrop-filter: blur(20px); border: 1px solid var(--border-glass); border-radius: 50px;
+            padding: 8px 8px 8px 25px; display: flex; align-items: center;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.6); transition: all 0.4s ease;
+        }
+        .wish-input-wrapper:focus-within { border-color: rgba(255, 255, 255, 0.5); background: rgba(20, 20, 25, 0.8); box-shadow: var(--glow-bright); }
+
+        #wish-input {
+            flex-grow: 1; background: transparent; border: none; outline: none;
+            color: #ffffff; font-family: 'Montserrat', sans-serif; font-size: 1rem; font-weight: 300;
+        }
+        #wish-input::placeholder { color: rgba(255,255,255,0.4); font-style: italic; font-family: 'Cormorant Garamond', serif; }
+
+        .btn-release {
+            background: #ffffff; color: #000; border: none; border-radius: 40px;
+            padding: 12px 25px; font-family: 'Montserrat', sans-serif; font-size: 0.75rem;
+            font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
+            cursor: pointer; transition: all 0.3s;
+        }
+        .btn-release:hover { box-shadow: var(--glow-bright); transform: scale(1.05); }
+
+        .floating-wish-text {
+            position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+            font-family: 'Cormorant Garamond', serif; font-size: 2.8rem; font-style: italic;
+            color: #ffffff; text-align: center; pointer-events: none; z-index: 20;
+            text-shadow: 0 0 40px rgba(255,255,255,0.9), 0 0 20px rgba(100,150,255,0.8); 
+            white-space: pre-wrap; width: 80%; opacity: 0;
+        }
+
+        #memory-popup {
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) scale(0.9);
+            background: radial-gradient(circle, rgba(20, 25, 40, 0.95) 0%, rgba(5, 5, 15, 0.98) 100%);
+            border: 1px solid rgba(100, 150, 255, 0.4); padding: 3rem 4rem; border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.9), 0 0 60px rgba(100, 150, 255, 0.3);
+            text-align: center; opacity: 0; visibility: hidden; pointer-events: auto;
+            backdrop-filter: blur(25px); max-width: 85%; min-width: 320px; z-index: 30;
+        }
+        .memory-label { font-size: 0.65rem; letter-spacing: 0.4em; color: #88bbff; text-transform: uppercase; margin-bottom: 1.5rem; display: block; font-weight: 500; }
+        .memory-text { font-family: 'Cormorant Garamond', serif; font-size: 2.2rem; font-style: italic; color: #fff; line-height: 1.4; text-shadow: 0 0 15px rgba(255,255,255,0.4);}
+        .btn-close-memory { margin-top: 2.5rem; background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 10px 25px; border-radius: 30px; cursor: pointer; transition: all 0.3s; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; }
+        .btn-close-memory:hover { background: rgba(255,255,255,0.1); border-color: #fff; box-shadow: 0 0 15px rgba(255,255,255,0.3); }
+
+        @media (max-width: 768px) {
+            .intro-title { font-size: 2.5rem; }
+            .memory-text { font-size: 1.6rem; }
+            #memory-popup { padding: 2rem 1.5rem; width: 90%; }
+            #interaction-area { bottom: 10%; }
+            .floating-wish-text { font-size: 1.8rem; }
+            .dob-box { padding: 2rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Audio Player -->
+    <audio id="bg-audio" loop>
+        <source src="say_yes.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- 3D Canvas -->
+    <div id="webgl-container"></div>
+
+    <!-- UI Overlay -->
+    <div id="ui-layer">
+        
+        <!-- Intro Animation -->
+        <div id="intro-screen">
+            <div class="intro-text serif">Project Vol</div>
+            <div class="intro-title serif">The Wish Constellation</div>
+        </div>
+
+        <!-- Date of Birth / Zodiac Picker -->
+        <div id="dob-screen">
+            <div class="dob-box" id="dob-box">
+                <h2 class="dob-title serif">Align the Stars</h2>
+                <div class="dob-subtitle">Kapan kamu dilahirkan?</div>
+                
+                <div class="date-selectors">
+                    <select id="birth-date">
+                        <option value="" disabled selected>Tanggal</option>
+                        <!-- Options generated via JS -->
+                    </select>
+                    <select id="birth-month">
+                        <option value="" disabled selected>Bulan</option>
+                        <option value="1">Januari</option><option value="2">Februari</option>
+                        <option value="3">Maret</option><option value="4">April</option>
+                        <option value="5">Mei</option><option value="6">Juni</option>
+                        <option value="7">Juli</option><option value="8">Agustus</option>
+                        <option value="9">September</option><option value="10">Oktober</option>
+                        <option value="11">November</option><option value="12">Desember</option>
+                    </select>
+                </div>
+                
+                <button class="btn-start" id="btn-start-journey">Find My Constellation</button>
+            </div>
+        </div>
+
+        <div class="hud-instructions" id="hud">
+            Drag to Rotate ✦ Pinch/Scroll to Zoom ✦ Click Stars to View
+        </div>
+
+        <!-- Popup Memory Vault -->
+        <div id="memory-popup">
+            <span class="memory-label">A Wish in the Stars</span>
+            <div class="memory-text" id="memory-content"></div>
+            <button class="btn-close-memory" id="btn-close">Return</button>
+        </div>
+
+        <!-- Input Area -->
+        <div id="interaction-area">
+            <div class="zodiac-indicator" id="zodiac-display">Constellation: Unknown</div>
+            <h2 class="input-prompt serif">What do you wish for this chapter?</h2>
+            <div class="wish-input-wrapper">
+                <input type="text" id="wish-input" placeholder="Type a wish, let the stars hear it..." autocomplete="off">
+                <button class="btn-release" id="btn-release">Release</button>
+            </div>
+        </div>
+
+        <div id="floating-text-container"></div>
+    </div>
+
+    <script>
+        // UI Elements
+        const introScreen = document.getElementById('intro-screen');
+        const dobScreen = document.getElementById('dob-screen');
+        const dobBox = document.getElementById('dob-box');
+        const btnStart = document.getElementById('btn-start-journey');
+        const interactionArea = document.getElementById('interaction-area');
+        const zodiacDisplay = document.getElementById('zodiac-display');
+        const hud = document.getElementById('hud');
+        
+        const dateSelect = document.getElementById('birth-date');
+        const monthSelect = document.getElementById('birth-month');
+        
+        for(let i=1; i<=31; i++) {
+            let opt = document.createElement('option');
+            opt.value = i; opt.innerHTML = i;
+            dateSelect.appendChild(opt);
+        }
+
+        let bgAudio = document.getElementById('bg-audio');
+        let activeZodiac = "Libra"; // Default
+        
+        // Exact Libra coordinates from EarthSky reference image
+        const zodiacData = {
+            "Libra": {
+                name: "Libra (The Scales)",
+                // Points in 3D space defining the shape
+                stars: [
+                    { id: 'far_l', pos: new THREE.Vector3(-120, 20, -50) },      // 1. Far left dot
+                    { id: 'mid_l', pos: new THREE.Vector3(-60, 45, -30) },       // 2. Mid left dot
+                    { id: 'z_sch', pos: new THREE.Vector3(0, 100, 0) },          // 3. Zubeneschamali (Top Apex)
+                    { id: 'z_gen', pos: new THREE.Vector3(80, 0, 20) },          // 4. Zubenelgenubi (Right Apex)
+                    { id: 'bot_c', pos: new THREE.Vector3(25, -90, -10) },       // 5. Bottom Center
+                    { id: 'bot_l', pos: new THREE.Vector3(-30, -135, -30) },     // 6. Bottom Left
+                    { id: 'bot_b', pos: new THREE.Vector3(-40, -165, -40) }      // 7. Bottommost Left
+                ],
+                // Connections to draw when points are spawned
+                lines: [
+                    ['far_l', 'mid_l'], 
+                    ['mid_l', 'z_sch'], 
+                    ['z_sch', 'z_gen'], 
+                    ['z_gen', 'bot_c'], 
+                    ['bot_c', 'z_sch'], // Closes the center triangle
+                    ['bot_c', 'bot_l'],
+                    ['bot_l', 'bot_b']
+                ]
+            },
+            // Fallback for others (Generic beautiful spiral cluster)
+            "Generic": {
+                name: "Your Star Cluster",
+                stars: Array.from({length: 10}, (_, i) => ({
+                    id: `s${i}`, 
+                    pos: new THREE.Vector3(Math.cos(i)*100, Math.sin(i)*100, (Math.random()-0.5)*100)
+                })),
+                lines: Array.from({length: 9}, (_, i) => [`s${i}`, `s${i+1}`])
+            }
+        };
+
+        function getZodiacSign(day, month) {
+            if((month == 1 && day <= 19) || (month == 12 && day >= 22)) return "Capricorn";
+            if((month == 1 && day >= 20) || (month == 2 && day <= 18)) return "Aquarius";
+            if((month == 2 && day >= 19) || (month == 3 && day <= 20)) return "Pisces";
+            if((month == 3 && day >= 21) || (month == 4 && day <= 19)) return "Aries";
+            if((month == 4 && day >= 20) || (month == 5 && day <= 20)) return "Taurus";
+            if((month == 5 && day >= 21) || (month == 6 && day <= 20)) return "Gemini";
+            if((month == 6 && day >= 21) || (month == 7 && day <= 22)) return "Cancer";
+            if((month == 7 && day >= 23) || (month == 8 && day <= 22)) return "Leo";
+            if((month == 8 && day >= 23) || (month == 9 && day <= 22)) return "Virgo";
+            if((month == 9 && day >= 23) || (month == 10 && day <= 22)) return "Libra";
+            if((month == 10 && day >= 23) || (month == 11 && day <= 21)) return "Scorpio";
+            if((month == 11 && day >= 22) || (month == 12 && day <= 21)) return "Sagittarius";
+            return "Libra"; // Fallback
+        }
+
+        let currentConstellation;
+        let spawnedStarsMap = {}; // Tracks which stars have been placed
+
+        function startApp() {
+            const tl = gsap.timeline();
+            tl.to('.intro-text', { opacity: 1, duration: 1.5, ease: "power2.inOut" })
+              .to('.intro-title', { opacity: 1, duration: 1.5, ease: "power2.inOut" }, "-=0.5")
+              .to('#intro-screen', { opacity: 0, duration: 1.5, delay: 1.5, onComplete: () => {
+                  introScreen.style.display = 'none';
+                  dobScreen.style.visibility = 'visible';
+                  gsap.to(dobScreen, { opacity: 1, duration: 1 });
+                  gsap.to(dobBox, { opacity: 1, y: 0, duration: 1, ease: "back.out(1.2)", delay: 0.5 });
+              }});
+        }
+
+        btnStart.addEventListener('click', () => {
+            const d = dateSelect.value; const m = monthSelect.value;
+            if(!d || !m) { alert("Pilih tanggal dan bulan dulu ya!"); return; }
+            
+            // Audio Play
+            bgAudio.volume = 0.5;
+            bgAudio.play().catch(e => console.log("Audio autoplay prevented"));
+
+            const z = getZodiacSign(d, m);
+            activeZodiac = zodiacData[z] ? z : (z === "Libra" ? "Libra" : "Generic");
+            if(activeZodiac === "Generic") zodiacData["Generic"].name = `${z} Constellation`;
+            
+            currentConstellation = zodiacData[activeZodiac];
+            zodiacDisplay.innerText = `Constellation: ${currentConstellation.name}`;
+
+            // Fade out DOB screen and init 3D
+            gsap.to(dobBox, { opacity: 0, y: -30, duration: 0.8 });
+            gsap.to(dobScreen, { opacity: 0, duration: 1.5, delay: 0.5, onComplete: () => {
+                dobScreen.style.display = 'none';
+                init3D(); // Boot WebGL Engine
+            }});
+        });
+
+        startApp(); // Trigger sequence
+
+        const container = document.getElementById('webgl-container');
+        let scene, camera, renderer, controls;
+        let environmentGroup, galaxyGroup, constellationGroup; 
+        
+        let wishStars = []; 
+        let constellationLines = [];
+        let particlesSystem = []; 
+        let shootingStars = []; 
+        let currentWishIndex = 0;
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let pointerDownPos = { x: 0, y: 0 };
+        let isPopupOpen = false;
+
+        function createTexture(type) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            
+            if(type === 'wish') {
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                gradient.addColorStop(0.1, 'rgba(150, 220, 255, 1)');
+                gradient.addColorStop(0.3, 'rgba(50, 120, 255, 0.5)');
+                gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            } else if (type === 'nova') {
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                gradient.addColorStop(0.1, 'rgba(255, 200, 150, 0.9)');
+                gradient.addColorStop(0.4, 'rgba(150, 100, 255, 0.3)');
+                gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            } else { // Ambient dust
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+                gradient.addColorStop(0.2, 'rgba(100, 150, 255, 0.3)');
+                gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            }
+            ctx.fillStyle = gradient; ctx.fillRect(0, 0, 128, 128);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const texAmbient = createTexture('ambient');
+        const texWish = createTexture('wish');
+        const texNova = createTexture('nova');
+
+        function init3D() {
+            scene = new THREE.Scene();
+            // Sangat tipis kabutnya agar deep space terlihat
+            scene.fog = new THREE.FogExp2(0x010103, 0.0003); 
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 10000); 
+            // Camera mulai dari jauh banget buat Intro Cinematic
+            camera.position.set(0, 800, 2500); 
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            container.appendChild(renderer.domElement);
+
+            // OrbitControls - Bebas 360 derajat!
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.enablePan = false; 
+            controls.minDistance = 50; 
+            controls.maxDistance = 2000; 
+
+            // Groups
+            environmentGroup = new THREE.Group(); scene.add(environmentGroup);
+            galaxyGroup = new THREE.Group(); scene.add(galaxyGroup);
+            constellationGroup = new THREE.Group(); scene.add(constellationGroup); // Stars stand still while galaxy rotates
+
+            createDeepSpaceEnvironment(); // Bikin rame sekitarnya
+            createGalaxy();
+            setupInteraction();
+            
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+            
+            // Fade in canvas
+            gsap.to(container, { opacity: 1, duration: 2 });
+            
+            // Cinematic Camera Dive
+            gsap.to(camera.position, {
+                y: 50, z: 400, duration: 4.5, ease: "power3.inOut",
+                onComplete: () => {
+                    gsap.to(interactionArea, { autoAlpha: 1, y: 0, duration: 1.5 });
+                    gsap.to(hud, { autoAlpha: 1, duration: 1.5 });
+                    setTimeout(() => gsap.to(hud, { autoAlpha: 0, duration: 1 }), 8000);
+                }
+            });
+
+            animate();
+        }
+
+        function createDeepSpaceEnvironment() {
+            // 1. Massive Ambient Starfield (Ribuan bintang statis di background jauh)
+            const starCount = 8000;
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array(starCount * 3);
+            for(let i=0; i<starCount; i++) {
+                // Spherical distribution far away
+                const r = 2000 + Math.random() * 3000;
+                const theta = 2 * Math.PI * Math.random();
+                const phi = Math.acos(2 * Math.random() - 1);
+                pos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+                pos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+                pos[i*3+2] = r * Math.cos(phi);
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            const mat = new THREE.PointsMaterial({ size: 2, color: 0x88bbff, transparent: true, opacity: 0.6 });
+            const deepStars = new THREE.Points(geo, mat);
+            environmentGroup.add(deepStars);
+
+            // 2. Nebula Clouds (Awan debu ungu/biru)
+            for(let i=0; i<15; i++) {
+                const spriteMat = new THREE.SpriteMaterial({
+                    map: texNova, color: Math.random() > 0.5 ? 0x221155 : 0x113355, 
+                    transparent: true, opacity: 0.15, blending: THREE.AdditiveBlending, depthWrite: false
+                });
+                const sprite = new THREE.Sprite(spriteMat);
+                const scale = 1000 + Math.random() * 2000;
+                sprite.scale.set(scale, scale, 1);
+                sprite.position.set((Math.random()-0.5)*4000, (Math.random()-0.5)*2000, (Math.random()-0.5)*4000);
+                environmentGroup.add(sprite);
+            }
+        }
+
+        function createGalaxy() {
+            // Galaksi Spiral Raksasa
+            const particleCount = 25000;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+            
+            const colorCore = new THREE.Color(0xffdd88); // Inti Emas Terang
+            const colorMid = new THREE.Color(0xaa44ff);  // Ungu Tengah
+            const colorEdge = new THREE.Color(0x2288ff); // Biru Luar
+
+            for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                const radius = (Math.pow(Math.random(), 3)) * 1500; 
+                
+                const branchCount = 4; // 4 Spiral arms
+                const branchAngle = ((i % branchCount) / branchCount) * Math.PI * 2;
+                const spinAngle = radius * 0.003; 
+
+                const scatter = radius/1500 + 0.1;
+                const randomX = Math.pow(Math.random() - 0.5, 3) * 600 * scatter;
+                const randomY = Math.pow(Math.random() - 0.5, 3) * 300 * scatter;
+                const randomZ = Math.pow(Math.random() - 0.5, 3) * 600 * scatter;
+
+                positions[i3] = Math.cos(branchAngle + spinAngle) * radius + randomX;
+                positions[i3 + 1] = randomY * 0.4; 
+                positions[i3 + 2] = Math.sin(branchAngle + spinAngle) * radius + randomZ;
+
+                const mixedColor = new THREE.Color();
+                if (radius < 300) { mixedColor.copy(colorCore).lerp(colorMid, radius / 300); } 
+                else { mixedColor.copy(colorMid).lerp(colorEdge, (radius - 300) / 1200); }
+                
+                if(Math.random() > 0.95) mixedColor.setHex(0xffffff);
+
+                colors[i3] = mixedColor.r; colors[i3 + 1] = mixedColor.g; colors[i3 + 2] = mixedColor.b;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const material = new THREE.PointsMaterial({
+                size: 3, map: texAmbient, transparent: true, opacity: 0.8,
+                vertexColors: true, blending: THREE.AdditiveBlending, depthWrite: false
+            });
+
+            const starSystem = new THREE.Points(geometry, material);
+            
+            // Inti Galaksi (Core Glow)
+            const coreSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: texNova, color: 0xffeedd, transparent: true, blending: THREE.AdditiveBlending, opacity: 1, depthWrite: false
+            }));
+            coreSprite.scale.set(700, 600, 1);
+            
+            galaxyGroup.add(coreSprite);
+            galaxyGroup.add(starSystem);
+
+            // Miringkan galaksi estetika
+            galaxyGroup.rotation.x = 0.4;
+            galaxyGroup.rotation.z = -0.15;
+        }
+
+        const wishInput = document.getElementById('wish-input');
+        const btnRelease = document.getElementById('btn-release');
+        const floatingTextContainer = document.getElementById('floating-text-container');
+
+        btnRelease.addEventListener('click', releaseWish);
+        wishInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') releaseWish(); });
+
+        function releaseWish() {
+            const wishText = wishInput.value.trim();
+            if (!wishText) return;
+
+            wishInput.value = ''; wishInput.blur();
+            wishInput.disabled = true; btnRelease.disabled = true;
+            
+            gsap.to(interactionArea, { autoAlpha: 0, y: 30, duration: 0.5 });
+            gsap.to(hud, { autoAlpha: 0, duration: 0.5 });
+
+            // HTML Magic Text Sequence
+            const textEl = document.createElement('div');
+            textEl.classList.add('floating-wish-text');
+            textEl.innerText = wishText;
+            floatingTextContainer.appendChild(textEl);
+
+            const tl = gsap.timeline();
+            tl.fromTo(textEl, 
+                { autoAlpha: 0, scale: 0.5, y: 50, filter: 'blur(10px)' },
+                { autoAlpha: 1, scale: 1, y: 0, filter: 'blur(0px)', duration: 1.5, ease: "back.out(1.2)" }
+            )
+            .to(textEl, { scale: 1.05, duration: 1.5 })
+            .to(textEl, { autoAlpha: 0, scale: 0.1, filter: 'blur(20px)', duration: 1, ease: "power3.in", 
+                onComplete: () => {
+                    textEl.remove();
+                    launch3DWish(wishText); 
+                }
+            }, "-=0.2");
+        }
+
+        function launch3DWish(text) {
+            controls.enabled = false;
+
+            // Determine Position from Constellation Data
+            let targetPos, starId;
+            if(currentWishIndex < currentConstellation.stars.length) {
+                targetPos = currentConstellation.stars[currentWishIndex].pos.clone();
+                starId = currentConstellation.stars[currentWishIndex].id;
+            } else {
+                // Orbit outside constellation
+                const radius = 200 + Math.random() * 150;
+                const angle = Math.random() * Math.PI * 2;
+                targetPos = new THREE.Vector3(Math.cos(angle)*radius, (Math.random()-0.5)*150, Math.sin(angle)*radius);
+                starId = `extra_${currentWishIndex}`;
+            }
+
+            const starMat = new THREE.SpriteMaterial({ map: texWish, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthTest: false });
+            const star = new THREE.Sprite(starMat);
+            
+            // Start from bottom screen
+            const startPos = new THREE.Vector3(0, -100, 50).applyMatrix4(camera.matrixWorld);
+            star.position.copy(startPos);
+            star.scale.set(5, 5, 1);
+            star.userData = { id: starId, text: text, baseScale: 25 }; 
+            
+            constellationGroup.add(star);
+            wishStars.push(star);
+            spawnedStarsMap[starId] = star; // Save reference for line drawing
+
+            // Camera subtle follow
+            gsap.to(controls.target, { x: targetPos.x * 0.3, y: targetPos.y * 0.3, z: targetPos.z * 0.3, duration: 2.5, ease: "power2.inOut" });
+
+            // Flight
+            gsap.to(star.position, { x: targetPos.x, y: targetPos.y, z: targetPos.z, duration: 2.5, ease: "power3.inOut" });
+            gsap.to(star.scale, { x: 45, y: 45, duration: 2.5, ease: "power2.in",
+                onComplete: () => {
+                    // EPIC SUPERNOVA BURST!
+                    createSupernova(targetPos);
+                    
+                    // Constellation Line Connection Logic
+                    checkAndDrawLines();
+                    
+                    gsap.to(star.scale, { x: star.userData.baseScale, y: star.userData.baseScale, duration: 1.5, ease: "elastic.out(1, 0.3)" });
+                    
+                    currentWishIndex++;
+                    wishInput.disabled = false; btnRelease.disabled = false;
+                    controls.enabled = true; 
+                    gsap.to(interactionArea, { autoAlpha: 1, y: 0, duration: 1, delay: 0.5 });
+                }
+            });
+        }
+
+        let drawnLines = new Set();
+
+        function checkAndDrawLines() {
+            currentConstellation.lines.forEach(lineDef => {
+                const idA = lineDef[0]; const idB = lineDef[1];
+                const lineKey = `${idA}_${idB}`;
+                
+                // If both stars exist and line not drawn yet
+                if(spawnedStarsMap[idA] && spawnedStarsMap[idB] && !drawnLines.has(lineKey)) {
+                    drawnLines.add(lineKey);
+                    drawGlowingLine(spawnedStarsMap[idA].position, spawnedStarsMap[idB].position);
+                }
+            });
+        }
+
+        function drawGlowingLine(posA, posB) {
+            const material = new THREE.LineBasicMaterial({ color: 0x88eeff, transparent: true, opacity: 0, linewidth: 2, blending: THREE.AdditiveBlending });
+            const geometry = new THREE.BufferGeometry().setFromPoints([posA, posA]); // Start length 0
+            const line = new THREE.Line(geometry, material);
+            constellationGroup.add(line);
+            
+            // Animate stretch
+            gsap.to(material, { opacity: 0.8, duration: 1.5, ease: "power2.inOut" });
+            const proxy = { x: posA.x, y: posA.y, z: posA.z };
+            gsap.to(proxy, {
+                x: posB.x, y: posB.y, z: posB.z, duration: 1.5, ease: "power2.out",
+                onUpdate: () => {
+                    const posArray = line.geometry.attributes.position.array;
+                    posArray[3] = proxy.x; posArray[4] = proxy.y; posArray[5] = proxy.z;
+                    line.geometry.attributes.position.needsUpdate = true;
+                }
+            });
+        }
+
+        function createSupernova(position) {
+            // Flash Silau
+            const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: texNova, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+            flash.position.copy(position);
+            flash.scale.set(10, 10, 1);
+            scene.add(flash);
+
+            gsap.to(flash.scale, { x: 500, y: 500, duration: 0.3, ease: "power2.out" });
+            gsap.to(flash.material, { opacity: 0, duration: 0.6, delay: 0.1, onComplete: () => scene.remove(flash) });
+
+            // Burst Particles 
+            const pCount = 500;
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array(pCount * 3);
+            const vels = [];
+            const cols = new Float32Array(pCount * 3);
+
+            const c1 = new THREE.Color(0x88ccff); 
+            const c2 = new THREE.Color(0xffaaff); 
+
+            for (let i = 0; i < pCount; i++) {
+                pos[i*3] = position.x; pos[i*3+1] = position.y; pos[i*3+2] = position.z;
+                
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos((Math.random() * 2) - 1);
+                const speed = Math.random() * 30 + 10; // Kenceng!
+                
+                vels.push({ x: Math.sin(phi)*Math.cos(theta)*speed, y: Math.sin(phi)*Math.sin(theta)*speed, z: Math.cos(phi)*speed });
+                const c = Math.random() > 0.5 ? c1 : c2;
+                if (Math.random() > 0.8) c.setHex(0xffffff); 
+                cols[i*3] = c.r; cols[i*3+1] = c.g; cols[i*3+2] = c.b;
+            }
+
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+            
+            const mat = new THREE.PointsMaterial({ size: 5, vertexColors: true, map: texAmbient, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+            const points = new THREE.Points(geo, mat);
+            scene.add(points);
+            
+            particlesSystem.push({ mesh: points, velocities: vels, life: 1.0, decay: 0.015 });
+        }
+
+        const memoryPopup = document.getElementById('memory-popup');
+        const memoryContent = document.getElementById('memory-content');
+        const btnClose = document.getElementById('btn-close');
+
+        function setupInteraction() {
+            window.addEventListener('pointerdown', (e) => { pointerDownPos.x = e.clientX; pointerDownPos.y = e.clientY; });
+            window.addEventListener('pointerup', (e) => {
+                if(isPopupOpen || controls.enabled === false) return;
+
+                const dx = Math.abs(e.clientX - pointerDownPos.x);
+                const dy = Math.abs(e.clientY - pointerDownPos.y);
+                if (dx > 5 || dy > 5) return; // Ignore drag
+
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                raycaster.setFromCamera(mouse, camera);
+                
+                const intersects = raycaster.intersectObjects(wishStars);
+                if (intersects.length > 0) openMemoryVault(intersects[0].object);
+            });
+        }
+
+        function openMemoryVault(star) {
+            isPopupOpen = true; controls.enabled = false;
+            gsap.to(interactionArea, { autoAlpha: 0, duration: 0.3 });
+            
+            // View pos
+            const offset = new THREE.Vector3().subVectors(camera.position, controls.target).normalize().multiplyScalar(120);
+            const viewPos = star.position.clone().add(offset);
+            
+            gsap.to(camera.position, { x: viewPos.x, y: viewPos.y, z: viewPos.z, duration: 1.5, ease: "power3.inOut" });
+            gsap.to(controls.target, { x: star.position.x, y: star.position.y, z: star.position.z, duration: 1.5, ease: "power3.inOut" });
+
+            gsap.to(star.scale, { x: 40, y: 40, duration: 0.5, yoyo: true, repeat: 1, 
+                onComplete: () => gsap.to(star.scale, { x: star.userData.baseScale, y: star.userData.baseScale, duration: 0.5})
+            });
+
+            memoryContent.innerText = `"${star.userData.text}"`;
+            gsap.to(memoryPopup, { autoAlpha: 1, scale: 1, duration: 0.6, delay: 1, ease: "back.out(1.2)" });
+        }
+
+        btnClose.addEventListener('click', () => {
+            gsap.to(memoryPopup, { autoAlpha: 0, scale: 0.9, duration: 0.4, ease: "power2.in" });
+            
+            const backOff = new THREE.Vector3().subVectors(camera.position, controls.target).normalize().multiplyScalar(250);
+            gsap.to(camera.position, {
+                x: camera.position.x + backOff.x, y: camera.position.y + backOff.y + 30, z: camera.position.z + backOff.z,
+                duration: 2, ease: "power3.inOut",
+                onComplete: () => {
+                    isPopupOpen = false; controls.enabled = true;
+                    gsap.to(interactionArea, { autoAlpha: 1, duration: 0.5 });
+                }
+            });
+        });
+
+        function spawnShootingStar() {
+            if(isPopupOpen || Math.random() > 0.02) return;
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array([0,0,0, 0,0,0]); 
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
+            const line = new THREE.Line(geo, mat);
+            
+            const startX = (Math.random() - 0.5) * 2000;
+            const startY = 500 + Math.random() * 500;
+            const startZ = -500 - Math.random() * 1000;
+            scene.add(line);
+
+            shootingStars.push({
+                mesh: line, pos: new THREE.Vector3(startX, startY, startZ),
+                velocity: new THREE.Vector3((Math.random()-0.5)*20, -25 - Math.random()*15, 0),
+                life: 1.0, length: 40 + Math.random()*50
+            });
+        }
+
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if(!scene) return; // Prevent run before init
+            
+            const time = clock.getElapsedTime();
+
+            if(!isPopupOpen) {
+                galaxyGroup.rotation.y += 0.0003; // Slow elegant spin
+            }
+
+            controls.update(); 
+            
+            // Physics for supernovas
+            for (let i = particlesSystem.length - 1; i >= 0; i--) {
+                const sys = particlesSystem[i];
+                const pos = sys.mesh.geometry.attributes.position.array;
+                sys.life -= sys.decay; sys.mesh.material.opacity = sys.life;
+
+                for (let j = 0; j < sys.velocities.length; j++) {
+                    pos[j*3] += sys.velocities[j].x; pos[j*3+1] += sys.velocities[j].y; pos[j*3+2] += sys.velocities[j].z;
+                    sys.velocities[j].x *= 0.94; sys.velocities[j].y *= 0.94; sys.velocities[j].z *= 0.94; // Drag
+                }
+                sys.mesh.geometry.attributes.position.needsUpdate = true;
+
+                if (sys.life <= 0) {
+                    scene.remove(sys.mesh); sys.mesh.geometry.dispose(); sys.mesh.material.dispose();
+                    particlesSystem.splice(i, 1);
+                }
+            }
+
+            // Physics for shooting stars
+            spawnShootingStar();
+            for (let i = shootingStars.length - 1; i >= 0; i--) {
+                const star = shootingStars[i];
+                star.life -= 0.02; star.mesh.material.opacity = star.life;
+                star.pos.add(star.velocity);
+                const tailPos = star.pos.clone().sub(star.velocity.clone().normalize().multiplyScalar(star.length));
+                const positions = star.mesh.geometry.attributes.position.array;
+                positions[0] = star.pos.x; positions[1] = star.pos.y; positions[2] = star.pos.z;
+                positions[3] = tailPos.x;  positions[4] = tailPos.y;  positions[5] = tailPos.z;
+                star.mesh.geometry.attributes.position.needsUpdate = true;
+                if (star.life <= 0) {
+                    scene.remove(star.mesh); star.mesh.geometry.dispose(); star.mesh.material.dispose();
+                    shootingStars.splice(i, 1);
+                }
+            }
+
+            // Star breathing
+            wishStars.forEach((star, i) => {
+                if(!gsap.isTweening(star.scale)) {
+                    const scale = star.userData.baseScale + Math.sin(time * 2 + i) * 3;
+                    star.scale.set(scale, scale, 1);
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+    </script>
+</body>
+</html>
